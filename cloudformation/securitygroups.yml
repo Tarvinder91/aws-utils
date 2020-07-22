@@ -1,0 +1,316 @@
+##
+
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: EMR Security Groups
+Parameters:
+  VPC:
+    Description: VPC
+    Type: AWS::EC2::VPC::Id
+Resources:
+  MasterSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: The security group for master node
+      VpcId: !Ref 'VPC'
+      SecurityGroupIngress:
+        - SourceSecurityGroupId: !Ref SlaveSG
+          FromPort: '0'
+          IpProtocol: tcp
+          ToPort: '65535'
+        - CidrIp: 10.162.224.64/32
+          FromPort: -1
+          ToPort: -1
+          IpProtocol: -1
+        - CidrIp: 10.0.0.0/8
+          FromPort: 22
+          ToPort: 22
+          IpProtocol: tcp
+        - CidrIp: 10.162.224.64/32
+          FromPort: -1
+          ToPort: -1
+          IpProtocol: -1
+      Tags:
+        - Key: Name
+          Value: !Join 
+            - '-'
+            - - !Sub '${AWS::StackName}'
+              - MasterSG 
+  MasterToSlaveTCPIngress: 
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 0
+      ToPort: 65535
+      SourceSecurityGroupId: !Ref SlaveSG
+      GroupId: !Ref 'MasterSG'
+  MasterIngressFromSelfTCP:                  
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 0
+      ToPort: 65535
+      SourceSecurityGroupId: !Ref MasterSG
+      GroupId: !Ref 'MasterSG'
+  MasterSGIngressFromSlaveUDP:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: udp
+      FromPort: 0
+      ToPort: 65535
+      SourceSecurityGroupId: !Ref SlaveSG
+      GroupId: !Ref 'MasterSG'
+  MasterSGIngressFromSelf:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: udp
+      FromPort: 0
+      ToPort: 65535
+      SourceSecurityGroupId: !Ref MasterSG
+      GroupId: !Ref 'MasterSG'
+  MasterSGICMPIngressFromSlave:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: icmp
+      FromPort: -1
+      ToPort: -1
+      SourceSecurityGroupId: !Ref SlaveSG
+      GroupId: !Ref 'MasterSG'
+  MasterSGICMPIngressFromSelfReference:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: icmp
+      FromPort: -1
+      ToPort: -1      
+      SourceSecurityGroupId: !Ref MasterSG
+      GroupId: !Ref 'MasterSG'
+  MasterSGIngressFromServiceSG:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 8443
+      ToPort: 8443
+      SourceSecurityGroupId: !Ref EMRServiceSG
+      GroupId: !Ref 'MasterSG'
+
+###### MASTER EGRESS   ##########3
+  MasterSGEgressToAllHTTP:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80
+      CidrIp: 0.0.0.0/0
+      GroupId: !Ref 'MasterSG'
+  MasterSGEgressToAllHTTPS:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      CidrIp: 0.0.0.0/0
+      GroupId: !Ref 'MasterSG'      
+  MasterSGEgressToProxy:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 8080
+      ToPort: 8080
+      CidrIp: 10.162.0.0/16
+      GroupId: !Ref 'MasterSG'   
+  MasterSGEgressToAllTraffic:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: -1
+      FromPort: -1
+      ToPort: -1
+      CidrIp: 0.0.0.0/0
+      GroupId: !Ref 'MasterSG' 
+  MasterSGEgressToSlave:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: -1
+      FromPort: -1
+      ToPort: -1
+      SourceSecurityGroupId: !Ref SlaveSG
+      GroupId: !Ref 'MasterSG' 
+  MasterSGEgressToServiceSG:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: -1
+      FromPort: -1
+      ToPort: -1
+      SourceSecurityGroupId: !Ref EMRServiceSG
+      GroupId: !Ref 'MasterSG' 
+
+##############################################################
+##SLAVE SG
+
+  SlaveSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: The security group for the slave nodes
+      VpcId: !Ref 'VPC'
+      Tags:
+        - Key: Name
+          Value: !Join 
+            - '-'
+            - - !Sub '${AWS::StackName}'
+              - SlaveSG       
+  SlaveSGTCPIngressFromSelf:   
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 0
+      ToPort: 65535
+      SourceSecurityGroupId: !Ref SlaveSG
+      GroupId: !Ref 'SlaveSG'
+  SlaveSGUDPIngressFromSelf:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: udp
+      FromPort: 0
+      ToPort: 65535
+      SourceSecurityGroupId: !Ref SlaveSG
+      GroupId: !Ref 'SlaveSG'
+  SlaveSGTCPIngressFromMaster:   
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 0
+      ToPort: 65535
+      SourceSecurityGroupId: !Ref MasterSG
+      GroupId: !Ref 'SlaveSG'
+  SlaveSGUDPIngressFromMaster:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: udp
+      FromPort: 0
+      ToPort: 65535
+      SourceSecurityGroupId: !Ref MasterSG
+      GroupId: !Ref 'SlaveSG'
+  SlaveSGTCPIngressFromServiceEG:   
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 8443
+      ToPort: 8443
+      SourceSecurityGroupId: !Ref EMRServiceSG
+      GroupId: !Ref 'SlaveSG'
+  SlaveSGICMPIngressFromMaster:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: icmp
+      FromPort: -1
+      ToPort: -1      
+      SourceSecurityGroupId: !Ref MasterSG
+      GroupId: !Ref SlaveSG
+  SlaveSGICMPIngressFromSelf:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: icmp
+      FromPort: -1
+      ToPort: -1      
+      SourceSecurityGroupId: !Ref SlaveSG
+      GroupId: !Ref SlaveSG  
+
+###### SLAVE OUTBOUND  ##########33
+
+  SlaveSGEgressToAllHTTP:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80
+      CidrIp: 0.0.0.0/0
+      GroupId: !Ref 'SlaveSG'
+  SlaveSGEgressToAllHTTPS:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      CidrIp: 0.0.0.0/0
+      GroupId: !Ref 'SlaveSG'      
+  SlaveSGEgressToProxy:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 8080
+      ToPort: 8080
+      CidrIp: 10.162.0.0/16
+      GroupId: !Ref 'SlaveSG'   
+  SlaveSGEgressToAllTraffic:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: -1
+      FromPort: -1
+      ToPort: -1
+      CidrIp: 0.0.0.0/0
+      GroupId: !Ref SlaveSG
+  SlaveSGEgressToMaster:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: -1
+      FromPort: -1
+      ToPort: -1
+      SourceSecurityGroupId: !Ref MasterSG
+      GroupId: !Ref 'SlaveSG' 
+  SlaveSGEgressToServiceSG:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: -1
+      FromPort: -1
+      ToPort: -1
+      SourceSecurityGroupId: !Ref EMRServiceSG
+      GroupId: !Ref 'SlaveSG' 
+
+#######
+##SERVICE SG
+########################################################################
+
+
+
+  EMRServiceSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: The security group for the emr clusters in private subnets
+      VpcId: !Ref 'VPC'
+      Tags:
+        - Key: Name
+          Value: !Join 
+            - '-'
+            - - !Sub '${AWS::StackName}'
+              - ServiceSG     
+  EMRServiceSGEgressToMaster:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 8443
+      ToPort: 8443
+      SourceSecurityGroupId: !Ref MasterSG
+      GroupId: !Ref 'EMRServiceSG'
+  EMRServiceSGEgressToSlave:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 8443
+      ToPort: 8443
+      SourceSecurityGroupId: !Ref SlaveSG
+      GroupId: !Ref 'EMRServiceSG'
+
+Outputs:      
+  EMRMasterSGId:
+    Value: !Ref 'MasterSG'
+    Description: EMR Master Security Group ID
+
+  EMRSlaveSGId:
+    Value: !Ref 'SlaveSG'
+    Description: EMR Slave Security Group ID
+
+  EMRServiceSGId:
+    Value: !Ref 'EMRServiceSG'
+    Description: EMR Service Security Group ID
+
+
+
