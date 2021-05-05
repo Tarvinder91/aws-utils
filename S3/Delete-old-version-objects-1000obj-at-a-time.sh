@@ -32,12 +32,12 @@ echo $no_of_obj
 i=0
 while [ $i -lt $no_of_obj ]
 do
-    next=$((i+999))
+    next=$((i+1000))
     oldversions=$(cat "old-objects-$bucket.json" |  jq '.[] | {Key,VersionId}' | jq -s '.' | jq .[$i:$next])
         cat << EOF > deleted-files-start-index-$i.json
         {"Objects":$oldversions, "Quiet":true }
 EOF
-        echo "Deleting records from $i - $next"
+        echo "Deleting records from $i - $((next - 1))"
         aws s3api delete-objects --bucket "$bucket" --delete file://deleted-files-start-index-$i.json
 
         let i=i+1000
@@ -53,12 +53,12 @@ echo $no_of_markers
 i=0
 while [ $i -lt $no_of_markers ]
 do
-    next=$((i+999))
+    next=$((i+1000))
     markers=$(cat "delete-markers-$bucket.json" |  jq '.[] | {Key,VersionId}' | jq -s '.' | jq .[$i:$next])
         cat << EOF > deleted-markers-start-index-$i.json
         {"Objects":$markers, "Quiet":true }
 EOF
-        echo "Deleting markers from $i - $next"
+        echo "Deleting markers from $i - $((next - 1))"
         aws s3api delete-objects --bucket "$bucket" --delete file://deleted-markers-start-index-$i.json
 
         let i=i+1000
